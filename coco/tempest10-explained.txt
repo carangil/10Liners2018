@@ -1,0 +1,137 @@
+This is an explanation of how Tempest-10 works:
+Set tabs to '8'
+
+*** Line 10 ***
+
+POKE65495,1				| Switch to fast CPU clock
+PMODE4,1  				| Hi-res black and white mode.  On real hardware or emulators w/ correct settings, this produces some artifact colors.
+DIMEX(15,10):DIMEY(15,10)		EX and EY arrays contain all the possible enemy positions, precalculated.  1st dimenstion is segment number.  2nd dimenstion is depth
+DIMK(15)    				|K elements 0 to 15 are flagged true when a segment is captured
+PCLS					|Clear graphics screen
+DIMX(15):DIMY(15):			|X and Y contain the outside perimeter coordinates of the tempest cylinder
+DIMBX(64):DIMBY(64):			|BX and BY contain the points that make up the 'V' player cursor.  0-15 are for the middle of 16 segments, and +16 or +32 offset for the two sides
+M=85:N=77:PP=3.14 /8 			| Define some space-saving constants
+:FORI=0TO15:				|for all segments
+	SQ=SIN(I*PP):CQ=COS(I*PP):		|Calc sin and cos
+	R=RND(0)*.3+.7:				|Randomize radius
+	X(I)=SQ*M*R+120:Y(I)=CQ*M*R+100		|Calculate X outside tempest cylinder
+	:BX(I)=SIN((I+.5)*PP)*M+120		|Calculate player midpoint X   (for segment I)
+
+*** Line 20 ***
+
+Line 20 continues the for loop we started in line 10:
+
+	BY(I)=COS((I+.5)*PP)*M+100:					|Player midpoint Y (for segment I)
+	BX(I+16)=SIN((I+.3)*PP)*N+120:BY(I+16)=COS((I+.3)*PP)*N+100:	|Calculate player left side  (notice N is smaller radius than M)
+	BX(I+32)=SIN((I+.7)*PP)*N+120:BY(I+32)=COS((I+.7)*PP)*N+100	|Calcualte player right side  (notice N is smaller radius than M)
+NEXT									|End this loop
+
+FORI=0TO15:							|   go thru all segments again
+	LINE(X(I),Y(I))-(120,100),PSET:				|draw perimeter to middle for segment
+	LINE(X(I),Y(I))-(X((I+1)AND15),Y((I+1)AND15)),PSET	|connect all the outside segments
+
+*** Line 30 ***
+
+	FORJ=1TO9:									| For all depth values  (note already inside for-all-segments)
+		EX(I,J)=SIN((I+.5)*PP)*M*J/10+120:EY(I,J)=COS((I+.5)*PP)*M*J/10+100:	calculate enemy positions
+	NEXT
+NEXT  
+
+SCREEN1,1  |	Show graphics screen
+
+GOTO 80 
+
+*** LINE 65 ***
+This starts the main loop
+
+IFKC=15 THEN 
+	F=0:GOTO 610:	|KC is the number of captured elements.  If KC=15, all but one is captured, so we loose. Setting F to zero sets the loser function.
+ELSE
+	A$=INKEY$  		|Read keyboard, nonblocking
+
+
+	IFA$=" " THEN
+		GOTO600:	|Space is fire... goto 600
+
+	ELSE
+		IFA$="" THEN 
+			GOTO100:	|  If no keys were pressed, so jump over this next part
+		ELSE
+			LINE(BX(P),BY(P))-(BX(P+16),BY(P+16)),PRESET:LINE(BX(P),BY(P))-(BX(P+32),BY(P+32)),PRESET:	| undraw the player 
+			Q=P:  												|save player position
+			IFA$="A" THEN
+				P=P-1  |decrement player position
+			ELSE IFA$="D" THEN
+				P=P+1  |increment
+
+
+*** Line 80 ***
+
+P=P AND 15: 			| Mod by 16 segments
+P=K(P)*Q+P*(1-K(P)):		|This expression return the old position (q) if the player is trying to moved onto a captured space.  otherwise returns new position
+LINE(BX(P),BY(P))-(BX(P+16),BY(P+16)),PSET:LINE(BX(P),BY(P))-(BX(P+32),BY(P+32)),PSET	| redraw player in new position
+
+*** Line 100 ***
+
+A=INT(RND(0)*11):				|Pick random number
+S=S+(15-KC)					|Now that I think of it, I don't need this anymore
+:Z=0:						|I don't think I need this either
+IFA>C THEN					|If a is larger than number of enemies (C)
+	EP(C)=INT(RND(0)*16)			|Put a new enemy in a random segment
+	D(C)=1					|At the furthest depth
+	A=C					|Choose the new enemy as 'A'
+	C=C+1					|Increment number of enemies
+	F=400:GOSUB610				|Call 'draw' function of 610  
+	GOTO65:					|Back to main loop
+ELSE IFK(EP(A)) THE				|If the enemy is on a captured space
+	EP(A)=(EP(A)+1)AND15:D(A)=4:GOTO65	|Move the enemy to a adjacent space, and put the depth to 4
+ELSE CIRCLE(EX(EP(A),D(A)),EY(EP(A),D(A))),15/(11-D(A)),0 	|undraw the enemy  
+
+*** Line 140 ***
+140B=INT(RND(0)*4): 				|Choose random number 
+
+IFB=0 THENEP(A)=EP(A)-1:ELSEIFB=1 THENEP(A)=EP(A)+1:ELSED(A)=D(A)+B-1 |  move enemy, either to another segment or closer to player
+
+*** Line 145 ***
+
+F=400: 			| set draw function
+EP(A)=EP(A)AND15:  	|restrict enemy to 16 segments
+IFD(A)>9 THEN 		|If depth is 9 (closest to player) , capture this segment:
+	FORI=1TO9:
+		CIRCLE(EX(EP(A),I),EY(EP(A),I)),20/(10-I),1:
+	NEXT:
+	K(EP(A))=1:KC=KC+1:	|  set as caputed, and increment capture count
+	D(A)=1: 		|set depth back to 1 (user will see this as a new enemy)
+	GOSUB610:GOTO65: 	|call the draw function, then go back to main loop
+ELSE
+	GOSUB610:GOTO65	  	|if we didn't capture, we still want to draw and goto mainloop
+
+*** Line 600 ***
+
+F=600:  				|set function to 'line 600 mode'
+
+LINE(BX(P),BY(P))-(120,100),PSET:  	|draw laser beam (we goto-ed here if user pressed space bar)
+
+FORA=0TOC  			|for all enemies
+	IFP=EP(A) THEN		|if we hit an enemy
+		Z=1:		| dont remember this one; probably don't need it anymore
+		CIRCLE(EX(EP(A),D(A)),EY(EP(A),D(A))),15/(11-D(A)),0: 	|undraw
+		EP(A)=(EP(A)+5)AND15:D(A)=1:   	|create new enemy at different segment
+		NEXT  				|continue scanning	
+	ELSE
+		NEXT   				|continue scanning
+
+*** Line 610 ***
+610 is 3 functions in one, depending on F value!
+
+IF F=600 THEN   				|we are in  'line 600 mode' ; this is a continuation of line 600
+	 LINE(BX(P),BY(P))-(120,100),PRESET	| undraw the laser beam
+	:GOTO100:        			|back to the logic after handling keypresses
+
+ELSE IF F=400 THEN						|draw function mode
+	CIRCLE(EX(EP(A),D(A)),EY(EP(A),D(A))),15/(11-D(A)),1:   |draw an enemy
+	RETURN:
+
+ELSE PRINT"GAME OVER,SCORE:",S    | loser mode.  This is the last line, no goto, so implied END of program
+
+

@@ -52,5 +52,5 @@ game is lost.  Score visible on game over screen.
 
 tempest10.bas : Condensed, 10 line version
 tempest.bas: Full version, same functionality, but less confusing
-
+tempest10-explained.txt : Read this if you want to understand what is going on
 

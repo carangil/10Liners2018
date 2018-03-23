@@ -35,7 +35,7 @@ other programs may have done, and this program is too short to undo any of that.
 
 -----------------------------------------------------------------------------
 
-"TEMPEST"
+"TEMPEST"    for XTREME-256 Category
 
 This game looks a little like Tempest, but gameplay is different.
 When it first runs, it will appear frozen for several seconds.  The program
